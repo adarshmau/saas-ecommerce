@@ -13,9 +13,12 @@ completely isolated from other requests happening at the same time.
         return CURRENT_TENANT.get();
     }
     public static void setTenantId(String tenantId) {
+
         CURRENT_TENANT.set(tenantId);
     }
+
     public static  void clear(){
+
         CURRENT_TENANT.remove();
     }
 }

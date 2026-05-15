@@ -18,6 +18,7 @@ public class DataSourceConfig {
     public DataSourceProperties dataSourceProperties() {
         return new DataSourceProperties();
     }
+
     @Bean
     @Primary
     public DataSource dataSource(DataSourceProperties properties) {

@@ -14,11 +14,14 @@ public class TenantFilter implements Filter {
                          ServletResponse response,
                          FilterChain chain)
             throws IOException, ServletException {
+
         HttpServletRequest httpRequest = (HttpServletRequest) request;
 
         String tenantId =httpRequest.getHeader("X-Tenant-ID");
 
-        if (tenantId == null && tenantId.isEmpty()) {
+//     Only set if tenantId actually exists
+        if (tenantId != null && !tenantId.isEmpty()) {
+
             TenantContext.setTenantId(tenantId);
 
         }
@@ -26,6 +29,7 @@ public class TenantFilter implements Filter {
             chain.doFilter(request,response);
         }
         finally {
+            // clear after request to avoid memory leaks
             TenantContext.clear();
         }
     }

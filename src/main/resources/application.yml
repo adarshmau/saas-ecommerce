@@ -2,6 +2,10 @@ spring:
   application:
     name: saas-ecommerce
 
+    jackson:
+      serialization:
+        write-dates-as-timestamps: false
+
   datasource:
     url: jdbc:postgresql://localhost:5432/saas_ecommerce?TimeZone=Asia/Kolkata
     username: saas_user
@@ -12,6 +16,7 @@ spring:
     hibernate:
       ddl-auto: none
     show-sql: true
+    open-in-view: false
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
@@ -26,9 +31,13 @@ spring:
 server:
   port: 8080
 
+application:
+  jwt:
+    secret: 7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b
+    expiration: 86400000
+
 management:
   endpoints:
     web:
       exposure:
         include: health,info,metrics
-open-in-view: false
