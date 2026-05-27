@@ -38,6 +38,11 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleRuntime(RuntimeException ex) {
         return buildError(HttpStatus.INTERNAL_SERVER_ERROR, ex.getMessage());
     }
+    @ExceptionHandler(InvalidStatusTransitionException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidTransition(
+            InvalidStatusTransitionException ex) {
+        return buildError(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
 
     private ResponseEntity<Map<String, Object>> buildError(HttpStatus status, String message) {
         Map<String, Object> error = new HashMap<>();
