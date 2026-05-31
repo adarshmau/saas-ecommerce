@@ -48,6 +48,7 @@ public class OrderController {
     public ResponseEntity<List<OrderResponse>> getAllOrder(){
         return ResponseEntity.ok(orderService.getAllOrders());
     }
+
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasRole('STORE_OWNER')")
     public ResponseEntity<OrderResponse> updateStatus(
