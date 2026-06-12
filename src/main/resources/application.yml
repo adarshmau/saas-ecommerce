@@ -1,8 +1,7 @@
 spring:
   application:
     name: saas-ecommerce
-
-    jackson:
+  jackson:
       serialization:
         write-dates-as-timestamps: false
 
@@ -27,6 +26,17 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+  mail:
+      host: smtp.gmail.com
+      port: 587
+      username: adarshmaurya019@gmail.com
+      password: xhvv djks evjc qezs
+      properties:
+        mail:
+          smtp:
+            auth: true
+            starttls:
+              enable: true
 
 server:
   port: 8080

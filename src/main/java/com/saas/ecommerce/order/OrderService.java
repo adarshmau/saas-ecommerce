@@ -5,6 +5,7 @@ import com.saas.ecommerce.auth.User;
 import com.saas.ecommerce.auth.UserRepository;
 import com.saas.ecommerce.common.exception.InvalidStatusTransitionException;
 import com.saas.ecommerce.common.exception.ResourceNotFoundException;
+import com.saas.ecommerce.notification.NotificationService;
 import com.saas.ecommerce.order.dto.OrderItemRequest;
 import com.saas.ecommerce.order.dto.OrderRequest;
 import com.saas.ecommerce.order.dto.OrderResponse;
@@ -30,6 +31,7 @@ public class OrderService {
     private final OrderMapper orderMapper;
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
     // ─── Auth Helper ─────────────────────────────────────────────────────────
     //get current user details
     private User getCurrentUser() {
@@ -54,11 +56,18 @@ public class OrderService {
         BigDecimal total = processItems(request, products, order);
         order.setTotalAmount(total);
         Order saved = orderRepository.save(order);
+        notificationService.sendOrderNotification(
+                user.getId(),
+                tenantId,
+                saved.getId(),
+                OrderStatus.PENDING
+        );
         orderRepository.flush();
         log.info("Order created: {} for customer: {} in tenant: {}",
                 saved.getId(),
                 user.getEmail(),
                 tenantId);
+        
         return orderMapper.toResponse(orderRepository.findById(saved.getId()).get());
     }
    // All helper method-------------------------------------------------------------
@@ -198,6 +207,15 @@ public class OrderService {
 
         log.info("Order {} status updated: {} → {} | tenant: {}",
                 id, order.getStatus(), newStatus, tenantId);
+        
+        // Send notification to customer
+        notificationService.sendOrderNotification(
+                order.getCustomerId(),
+                tenantId,
+                order.getId(),
+                newStatus
+        );
+        
         return orderMapper.toResponse(saved);
     }
 

@@ -4,6 +4,7 @@ package com.saas.ecommerce.payment;
 import com.saas.ecommerce.auth.User;
 import com.saas.ecommerce.auth.UserRepository;
 import com.saas.ecommerce.common.exception.ResourceNotFoundException;
+import com.saas.ecommerce.notification.NotificationService;
 import com.saas.ecommerce.order.Order;
 import com.saas.ecommerce.order.OrderRepository;
 import com.saas.ecommerce.order.OrderStatus;
@@ -31,6 +32,7 @@ public class PaymentService {
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
     private final PaymentMapper paymentMapper;
+    private final NotificationService notificationService;
 
 
 // Auth helper -----------------------------------------
@@ -121,6 +123,14 @@ public class PaymentService {
 
         order.setStatus(OrderStatus.CONFIRMED);
         orderRepository.save(order);
+
+        // Send payment success notification
+        notificationService.sendPaymentNotification(
+                payment.getCustomerId(),
+                tenantId,
+                payment.getOrderId(),
+                PaymentStatus.COMPLETED
+        );
         Payment saved= paymentRepository.save(payment);
         log.info("Payment completed: {} order auto-confirmed: {}",saved.getId(),order.getId());
         return paymentMapper.toResponse(saved);
@@ -161,7 +171,17 @@ public class PaymentService {
         restoreStock(payment.getOrderId(), tenantId);
 
        Payment saved = paymentRepository.save(payment);
+
+        // Send payment failed notification
+        notificationService.sendPaymentNotification(
+                payment.getCustomerId(),
+                tenantId,
+                payment.getOrderId(),
+                PaymentStatus.FAILED
+        );
+
         log.info("Payment failed: {} reason: {}", saved.getId(), reason);
+
         return paymentMapper.toResponse(saved);
     }
 
