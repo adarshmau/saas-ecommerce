@@ -68,6 +68,23 @@
             <version>0.12.6</version>
             <scope>runtime</scope>
         </dependency>
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>2.8.5</version>
+        </dependency>
+        <!-- Redis -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+
+        <!-- Rate Limiting -->
+        <dependency>
+            <groupId>com.github.vladimir-bukhtoyarov</groupId>
+            <artifactId>bucket4j-core</artifactId>
+            <version>7.6.0</version>
+        </dependency>
 		<dependency>
 			<groupId>org.flywaydb</groupId>
 			<artifactId>flyway-core</artifactId>
@@ -152,6 +169,19 @@
 					</execution>
 				</executions>
 			</plugin>
+
+						<!-- Ensure tests run with a canonical timezone so the Postgres driver doesn't send
+						     legacy zone IDs (e.g. Asia/Calcutta) to the server during integration-tests. -->
+						<plugin>
+							<groupId>org.apache.maven.plugins</groupId>
+							<artifactId>maven-surefire-plugin</artifactId>
+							<version>3.1.2</version>
+							<configuration>
+								<systemPropertyVariables>
+									<user.timezone>Asia/Kolkata</user.timezone>
+								</systemPropertyVariables>
+							</configuration>
+						</plugin>
 		</plugins>
 	</build>
 

@@ -4,13 +4,29 @@ spring:
   jackson:
       serialization:
         write-dates-as-timestamps: false
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
 
   datasource:
     url: jdbc:postgresql://localhost:5432/saas_ecommerce?TimeZone=Asia/Kolkata
     username: saas_user
     password: saas_pass
     driver-class-name: org.postgresql.Driver
-
+    hikari:
+      # Ensure connections run an init SQL to set the session timezone to the
+      # canonical IANA ID. This helps when the JVM's default zone uses a legacy
+      # alias (Asia/Calcutta) which some Postgres servers reject.
+      connection-init-sql: "SET TIME ZONE 'Asia/Kolkata'"
+  springdoc:
+    api-docs:
+      path: /api-docs
+    swagger-ui:
+      path: /swagger-ui.html
+      tags-sorter: alpha
+      operations-sorter: alpha
   jpa:
     hibernate:
       ddl-auto: none

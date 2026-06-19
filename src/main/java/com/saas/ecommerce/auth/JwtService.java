@@ -59,6 +59,12 @@ public class JwtService {
         }
 
     }
+    public long getExpirySeconds(String token) {
+        Date expiry = extractAllClaims(token).getExpiration();
+        long remainingMillis = expiry.getTime()
+                - System.currentTimeMillis();
+        return Math.max(remainingMillis / 1000, 0);
+    }
 
 
 }

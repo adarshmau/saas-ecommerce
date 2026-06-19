@@ -1,6 +1,7 @@
 package com.saas.ecommerce.config;
 
 import com.saas.ecommerce.auth.JwtService;
+import com.saas.ecommerce.auth.TokenBlacklistService;
 import com.saas.ecommerce.tenant.TenantContext;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -21,6 +22,8 @@ import java.util.List;
 public class JwtFilter  extends OncePerRequestFilter {
 
     private final JwtService jwtService;
+    private final TokenBlacklistService tokenBlacklistService; // ✅ NEW
+
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -46,6 +49,15 @@ public class JwtFilter  extends OncePerRequestFilter {
 
         if (!jwtService.isTokenValid(token)) {
             filterChain.doFilter(request, response);
+            return;
+        }
+        //  Is token blacklisted (logged out)?
+        if (tokenBlacklistService.isBlacklisted(token)) {
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType("application/json");
+            response.getWriter().write(
+                    "{\"status\":401," +
+                            "\"message\":\"Token invalidated. Please login again.\"}");
             return;
         }
 

@@ -12,12 +12,16 @@ import com.saas.ecommerce.order.dto.OrderResponse;
 import com.saas.ecommerce.product.Product;
 import com.saas.ecommerce.product.ProductRepository;
 import com.saas.ecommerce.tenant.TenantContext;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -157,14 +161,12 @@ public class OrderService {
 // ─── READ OPERATIONS ──────────────────────────────────────────────────────
     // CUSTOMER — Get my orders
     @Transactional
-    public List<OrderResponse> getMyOrders() {
+    public Page<OrderResponse> getMyOrders(int page, int size) {
         String tenantId = TenantContext.getTenantId();
         User user = getCurrentUser();
-        return orderRepository.findByCustomerIdAndTenantId(user.getId(), tenantId)
-                .stream()
-                .map(orderMapper::toResponse)
-                .toList();
-
+        return orderRepository.findByCustomerIdAndTenantId(user.getId(), tenantId,
+                        buildPageable(page, size, "createdAt", "desc"))
+                .map(orderMapper::toResponse);
     }
     //    get order
     @Transactional
@@ -177,22 +179,36 @@ public class OrderService {
                         "Order not found with id: " + id));
         // CUSTOMER can only see their own orders
         if (currentUser.getRole() == Role.CUSTOMER
-                && !order.getCustomerId().equals(order.getCustomerId())) {
+                && !order.getCustomerId().equals(currentUser.getId())) {
 
             throw new AccessDeniedException("you do not have access to this order");
         }
         return orderMapper.toResponse(order);
     }
     //getAllOrders
-    @Transactional
-    public List<OrderResponse> getAllOrders() {
+    @Transactional(readOnly = true)
+    public Page<OrderResponse> getAllOrders(int page, int size) {
         String tenantId = TenantContext.getTenantId();
         log.info("Fetching all orders for tenant: {}", tenantId);
-        return orderRepository.findByTenantId(tenantId)
-                .stream()
-                .map(orderMapper::toResponse)
-                .toList();
+        return orderRepository
+                .findByTenantId(
+                        tenantId,
+                        buildPageable(page, size, "createdAt", "desc"))
+                .map(orderMapper::toResponse);
     }
+    //helper method -----------------------------------------------------------------------------
+    private Pageable buildPageable(int page, int size, String sortBy, String sortDir) {
+        if (size > 50) size = 50;
+        if (size < 1) size = 10;
+        if (page < 0) page = 0;
+
+        Sort sort = sortDir.equalsIgnoreCase("asc")
+                ? Sort.by(sortBy).ascending()
+                : Sort.by(sortBy).descending();
+
+        return PageRequest.of(page, size, sort);
+    }
+
 //------UPDATE STATUS-------------------------------------------------------
     public OrderResponse updateStatus(String id, OrderStatus newStatus) {
         String tenantId = TenantContext.getTenantId();
