@@ -38,12 +38,10 @@ public class ProductService {
                 .map(productMapper::toResponse);
     }
 
-    // ─── SEARCH WITH PAGINATION ───────────────────────────────
+    // ─── SEARCH WITH PAGINATION -------------------------------------------
 
     @Transactional(readOnly = true)
-    public Page<ProductResponse> searchProducts(String q,
-                                                int page,
-                                                int size) {
+    public Page<ProductResponse> searchProducts(String q, int page, int size) {
         String tenantId = TenantContext.getTenantId();
         log.info("Searching products for tenant: {} q={}",
                 tenantId, q);

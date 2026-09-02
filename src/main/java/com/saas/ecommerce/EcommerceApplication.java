@@ -8,9 +8,9 @@ import java.util.TimeZone;
 
 @SpringBootApplication
 @EnableJpaAuditing
-public class EcommerceApplication {
-
-	// Ensure JVM timezone is normalized early (applies to tests and main runtime).
+public class EcommerceApplication
+{
+    // Ensure JVM timezone is normalized early (applies to tests and main runtime).
 	// Some environments set the legacy ID "Asia/Calcutta" as user.timezone which
 	// PostgreSQL rejects when the driver sends SET TIME ZONE. Normalize to
 	// the canonical IANA name "Asia/Kolkata" here so Flyway / JDBC connections
@@ -19,7 +19,7 @@ public class EcommerceApplication {
 		// Force the system property so the Postgres driver uses the correct zone
 		System.setProperty("user.timezone", "Asia/Kolkata");
 		TimeZone.setDefault(TimeZone.getTimeZone("Asia/Kolkata"));
-	}
+    }
 
 	public static void main(String[] args) {
 

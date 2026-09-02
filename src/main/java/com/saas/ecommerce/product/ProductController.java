@@ -92,8 +92,8 @@ public class ProductController {
         response.put("size", page.getSize());
         response.put("totalElements", page.getTotalElements());
         response.put("totalPages", page.getTotalPages());
-        response.put("hasNext", page.hasNext());       // ✅
-        response.put("hasPrevious", page.hasPrevious()); // ✅
+        response.put("hasNext", page.hasNext());
+        response.put("hasPrevious", page.hasPrevious());
         return response;
     }
 }

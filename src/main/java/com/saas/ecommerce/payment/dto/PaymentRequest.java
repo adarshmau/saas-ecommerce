@@ -6,6 +6,6 @@ import lombok.Data;
 @Data
 public class PaymentRequest {
 
-    @NotBlank(message = "Order id is requried")
+    @NotBlank(message = "Order ID is required")
     private String orderId;
 }

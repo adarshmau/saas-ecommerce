@@ -17,4 +17,9 @@ public interface PaymentRepository extends JpaRepository<Payment,String> {
     // Get all payments for a customer
     List<Payment> findByCustomerIdAndTenantId(String customerId, String tenantId);
 
+
+    // Find by Razorpay order ID for verification
+    Optional<Payment> findByRazorpayOrderIdAndTenantId(
+            String razorpayOrderId, String tenantId);
+
 }

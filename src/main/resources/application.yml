@@ -2,31 +2,19 @@ spring:
   application:
     name: saas-ecommerce
   jackson:
-      serialization:
-        write-dates-as-timestamps: false
+    serialization:
+      write-dates-as-timestamps: false
   data:
     redis:
       host: localhost
       port: 6379
-
-
   datasource:
     url: jdbc:postgresql://localhost:5432/saas_ecommerce?TimeZone=Asia/Kolkata
     username: saas_user
     password: saas_pass
     driver-class-name: org.postgresql.Driver
     hikari:
-      # Ensure connections run an init SQL to set the session timezone to the
-      # canonical IANA ID. This helps when the JVM's default zone uses a legacy
-      # alias (Asia/Calcutta) which some Postgres servers reject.
       connection-init-sql: "SET TIME ZONE 'Asia/Kolkata'"
-  springdoc:
-    api-docs:
-      path: /api-docs
-    swagger-ui:
-      path: /swagger-ui.html
-      tags-sorter: alpha
-      operations-sorter: alpha
   jpa:
     hibernate:
       ddl-auto: none
@@ -38,21 +26,37 @@ spring:
         format_sql: true
         jdbc:
           time_zone: Asia/Kolkata
-
   flyway:
     enabled: true
     locations: classpath:db/migration
   mail:
-      host: smtp.gmail.com
-      port: 587
-      username: adarshmaurya019@gmail.com
-      password: xhvv djks evjc qezs
-      properties:
-        mail:
-          smtp:
-            auth: true
-            starttls:
-              enable: true
+    host: smtp.gmail.com
+    port: 587
+    username: adarshmaurya019@gmail.com
+    password: xhvv djks evjc qezs
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+razorpay:
+  key:
+    id: rzp_test_TWKth6Te2BrIdE
+    secret: FTmgVbEagek12M2OkRrPESlb
+
+gemini:
+  api:
+    key: AIzaSyBn4AfTS_1v5N6C5RupGWhJVCtJ8NE2NWs
+    url: https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
 
 server:
   port: 8080

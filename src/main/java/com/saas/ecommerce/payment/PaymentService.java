@@ -1,6 +1,5 @@
 package com.saas.ecommerce.payment;
 
-
 import com.saas.ecommerce.auth.User;
 import com.saas.ecommerce.auth.UserRepository;
 import com.saas.ecommerce.common.exception.ResourceNotFoundException;
@@ -10,20 +9,19 @@ import com.saas.ecommerce.order.OrderRepository;
 import com.saas.ecommerce.order.OrderStatus;
 import com.saas.ecommerce.payment.dto.PaymentRequest;
 import com.saas.ecommerce.payment.dto.PaymentResponse;
+import com.saas.ecommerce.payment.dto.PaymentVerifyRequest;
 import com.saas.ecommerce.product.Product;
 import com.saas.ecommerce.product.ProductRepository;
 import com.saas.ecommerce.tenant.TenantContext;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.UUID;
-
-@Service
 @Slf4j
+@Service
 @RequiredArgsConstructor
 public class PaymentService {
 
@@ -33,188 +31,198 @@ public class PaymentService {
     private final UserRepository userRepository;
     private final PaymentMapper paymentMapper;
     private final NotificationService notificationService;
+    private final RazorpayService razorpayService; // ✅ NEW
 
+    // ─── Auth Helper ──────────────────────────────────────────
 
-// Auth helper -----------------------------------------
-    public User getCurrentUser() {
+    private User getCurrentUser() {
         String email = SecurityContextHolder
                 .getContext()
                 .getAuthentication()
                 .getName();
-
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "User not found with email: " + email));
+                        "User not found: " + email));
     }
-//  -------- INITIATE PAYMENT-------------------------------------------------------
+
+    // ─── INITIATE PAYMENT ─────────────────────────────────────
+
     @Transactional
     public PaymentResponse initiatePayment(PaymentRequest request) {
+        String tenantId = TenantContext.getTenantId();
+        User user = getCurrentUser();
 
-        String tenantId= TenantContext.getTenantId();
-        User user= getCurrentUser();
-
-        //1 fetch the Order
-        Order order= orderRepository
-                .findByIdAndTenantId(request.getOrderId(),tenantId)
+        // 1 — Fetch order
+        Order order = orderRepository
+                .findByIdAndTenantId(request.getOrderId(), tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Order not found with id: " + request.getOrderId()));
+                        "Order not found: " + request.getOrderId()));
 
-       //2 Customer can only pay their own order
-        if(!order.getCustomerId().equals(user.getId())){
+        // 2 — Ownership check
+        if (!order.getCustomerId().equals(user.getId())) {
             throw new AccessDeniedException(
                     "You do not have access to this order");
         }
-        //3 Only PENDING orders can be paid
+
+        // 3 — Status check
         if (order.getStatus() != OrderStatus.PENDING) {
             throw new IllegalStateException(
-                    "Order is not in PENDING state. Current status:"
-                    +order.getStatus());
+                    "Order is not in PENDING state. Current: "
+                            + order.getStatus());
         }
-        // 4 Check payment doesn't already exist...
-        paymentRepository.findByOrderIdAndTenantId(request.getOrderId(),tenantId)
+
+        // 4 — Duplicate check
+        paymentRepository.findByOrderIdAndTenantId(
+                        request.getOrderId(), tenantId)
                 .ifPresent(p -> {
-                    throw new IllegalStateException("Payment already exists for order: "
-                            + request.getOrderId());
+                    throw new IllegalStateException(
+                            "Payment already exists for order: "
+                                    + request.getOrderId());
                 });
-        // 5 — Create payment
-        Payment payment= new Payment();
+
+        // 5 — Create Razorpay order ✅
+        String razorpayOrderId = razorpayService
+                .createRazorpayOrder(
+                        order.getTotalAmount(),
+                        "receipt_" + order.getId()
+                                .substring(0, 8));
+
+        // 6 — Save payment with razorpayOrderId
+        Payment payment = new Payment();
         payment.setOrderId(order.getId());
         payment.setCustomerId(user.getId());
         payment.setTenantId(tenantId);
         payment.setAmount(order.getTotalAmount());
         payment.setStatus(PaymentStatus.PENDING);
+        payment.setRazorpayOrderId(razorpayOrderId); // ✅
 
-        Payment saved= paymentRepository.save(payment);
+        Payment saved = paymentRepository.save(payment);
 
-        log.info("Payment initiated:  {} for order: {} tenant: {}" ,
-                saved.getId(),order.getId(),tenantId);
+        log.info("Payment initiated: {} razorpayOrderId: {}",
+                saved.getId(), razorpayOrderId);
+
         return paymentMapper.toResponse(saved);
-
     }
-    //COMPLETE PAYMENT (Simulate success)-----------------------------------------------------------
+
+    // ─── VERIFY PAYMENT ───────────────────────────────────────
+
     @Transactional
-    public PaymentResponse completePayment(String paymentId) {
+    public PaymentResponse verifyPayment(
+            PaymentVerifyRequest request) {
+        String tenantId = TenantContext.getTenantId();
 
-        String tenantId= TenantContext.getTenantId();
-
-        Payment payment= paymentRepository.findById(paymentId)
+        // 1 — Find payment by razorpayOrderId
+        Payment payment = paymentRepository
+                .findByRazorpayOrderIdAndTenantId(
+                        request.getRazorpayOrderId(), tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Payment not found with id: " + paymentId));
+                        "Payment not found for Razorpay order: "
+                                + request.getRazorpayOrderId()));
 
-        // Verify tenant
-        if (!payment.getTenantId().equals(tenantId)) {
-            throw new AccessDeniedException(
-                    "You do not have access to this order");
-        }
         if (payment.getStatus() != PaymentStatus.PENDING) {
             throw new IllegalStateException(
-                    "Payment is not PENDING. Current status: "
+                    "Payment already processed. Status: "
                             + payment.getStatus());
         }
-        // Simulate payment reference (later → real Razorpay ID)
-        payment.setStatus(PaymentStatus.COMPLETED);
-        payment.setPaymentReference("PAY-" + UUID.randomUUID()
-                .toString().substring(0, 8).toUpperCase());
 
-        //Auto confirm this order
-        Order order= orderRepository.findByIdAndTenantId(payment.getOrderId(),tenantId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Order not found with id: " + payment.getOrderId()));
+        // 2 — Verify signature ✅
+        boolean isValid = razorpayService.verifySignature(
+                request.getRazorpayOrderId(),
+                request.getRazorpayPaymentId(),
+                request.getRazorpaySignature());
 
-        order.setStatus(OrderStatus.CONFIRMED);
-        orderRepository.save(order);
+        if (isValid) {
+            // 3 — Payment success
+            payment.setStatus(PaymentStatus.COMPLETED);
+            payment.setRazorpayPaymentId(
+                    request.getRazorpayPaymentId());
+            payment.setRazorpaySignature(
+                    request.getRazorpaySignature());
 
-        // Send payment success notification
-        notificationService.sendPaymentNotification(
-                payment.getCustomerId(),
-                tenantId,
-                payment.getOrderId(),
-                PaymentStatus.COMPLETED
-        );
-        Payment saved= paymentRepository.save(payment);
-        log.info("Payment completed: {} order auto-confirmed: {}",saved.getId(),order.getId());
-        return paymentMapper.toResponse(saved);
+            // 4 — Auto confirm order
+            Order order = orderRepository
+                    .findByIdAndTenantId(
+                            payment.getOrderId(), tenantId)
+                    .orElseThrow(() ->
+                            new ResourceNotFoundException(
+                                    "Order not found"));
+            order.setStatus(OrderStatus.CONFIRMED);
+            orderRepository.save(order);
+
+            // 5 — Send notification
+            notificationService.sendPaymentNotification(
+                    payment.getCustomerId(),
+                    tenantId,
+                    payment.getOrderId(),
+                    PaymentStatus.COMPLETED);
+
+            log.info("Payment verified successfully: {}",
+                    payment.getId());
+
+        } else {
+            // 3 — Payment failed — invalid signature
+            payment.setStatus(PaymentStatus.FAILED);
+            payment.setFailureReason(
+                    "Invalid payment signature");
+
+            // 4 — Restore stock + cancel order
+            restoreStock(payment.getOrderId(), tenantId);
+
+            // 5 — Send notification
+            notificationService.sendPaymentNotification(
+                    payment.getCustomerId(),
+                    tenantId,
+                    payment.getOrderId(),
+                    PaymentStatus.FAILED);
+
+            log.warn("Payment verification failed — " +
+                    "invalid signature: {}", payment.getId());
+        }
+
+        return paymentMapper.toResponse(
+                paymentRepository.save(payment));
     }
-    // ─── GET PAYMENT BY ORDER ------------------------------------------------------------------------
-    public PaymentResponse getPaymentByOrder(String orderId) {
 
-        String tenantId= TenantContext.getTenantId();
+    // ─── GET PAYMENT BY ORDER ─────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public PaymentResponse getPaymentByOrder(String orderId) {
+        String tenantId = TenantContext.getTenantId();
         return paymentRepository
-                .findByOrderIdAndTenantId(orderId,tenantId)
+                .findByOrderIdAndTenantId(orderId, tenantId)
                 .map(paymentMapper::toResponse)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Order not found with id: " + orderId));
-    }
-    //fails payments------------------------------------------------------------------------------------------
-    @Transactional
-    public PaymentResponse failPayment(String paymentId, String reason)
-    {
-        String tenantId= TenantContext.getTenantId();
-
-        Payment payment=paymentRepository.findById(paymentId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Payment not found with id: " + paymentId));
-
-        if (!payment.getTenantId().equals(tenantId)) {
-            throw new AccessDeniedException(
-                    "You do not have access to this order");
-        }
-        if (payment.getStatus() != PaymentStatus.PENDING) {
-            throw new IllegalStateException(
-                    "Payment is not PENDING. Current status: "
-                            + payment.getStatus());
-        }
-        payment.setStatus(PaymentStatus.FAILED);
-        payment.setFailureReason(reason);
-
-        // Restore stock on failure
-        restoreStock(payment.getOrderId(), tenantId);
-
-       Payment saved = paymentRepository.save(payment);
-
-        // Send payment failed notification
-        notificationService.sendPaymentNotification(
-                payment.getCustomerId(),
-                tenantId,
-                payment.getOrderId(),
-                PaymentStatus.FAILED
-        );
-
-        log.info("Payment failed: {} reason: {}", saved.getId(), reason);
-
-        return paymentMapper.toResponse(saved);
+                        "Payment not found for order: " + orderId));
     }
 
+    // ─── RESTORE STOCK ────────────────────────────────────────
 
-    //helper method(RESTORE STOCK ON FAILURE)---------------------
-
-    public void restoreStock(String orderId,String tenantId) {
-
-        Order order= orderRepository.findByIdAndTenantId(orderId,tenantId)
+    private void restoreStock(String orderId, String tenantId) {
+        Order order = orderRepository
+                .findByIdAndTenantId(orderId, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Order not found with id: " + orderId));
+                        "Order not found: " + orderId));
 
         order.getItems().forEach(item -> {
-            Product product = productRepository.findByIdAndTenantId(item.getProductId(),tenantId)
-                    .orElseThrow(() -> new ResourceNotFoundException(
-                            "Product not found with id: " + item.getProductId()));
+            Product product = productRepository
+                    .findByIdAndTenantId(
+                            item.getProductId(), tenantId)
+                    .orElseThrow(() ->
+                            new ResourceNotFoundException(
+                                    "Product not found: "
+                                            + item.getProductId()));
 
-            product.setStockQuantity(product.getStockQuantity() + item.getQuantity());
+            product.setStockQuantity(
+                    product.getStockQuantity()
+                            + item.getQuantity());
             productRepository.save(product);
 
-
-            log.info("Stock restored for product: {}. New stock: {}",
-                    product.getName(), product.getStockQuantity());
+            log.info("Stock restored for product: {}. New: {}",
+                    product.getName(),
+                    product.getStockQuantity());
         });
+
         order.setStatus(OrderStatus.CANCELLED);
         orderRepository.save(order);
-
     }
-
-
-
-
 }
-
-
-
